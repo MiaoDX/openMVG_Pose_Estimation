@@ -30,6 +30,10 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <cmdLine/cmdLine.h>
+
+#include "json.hpp"
+
 
 using namespace openMVG;
 using namespace openMVG::image;
@@ -38,6 +42,8 @@ using namespace openMVG::cameras;
 using namespace openMVG::geometry;
 using namespace openMVG::sfm;
 using namespace std;
+
+using json = nlohmann::json;
 
 /// Read intrinsic K matrix from a file (ASCII)
 /// F 0 ppx
@@ -50,13 +56,56 @@ bool readIntrinsic(const std::string & fileName, Mat3 & K);
 ///  how refine the camera motion, focal and structure with Bundle Adjustment
 ///   way 1: independent cameras [R|t|f] and structure
 ///   way 2: independent cameras motion [R|t], shared focal [f] and structure
-int main() {
+int main( int argc, char **argv ) 
+{
 
-  const std::string sInputDir = stlplus::folder_up(string(THIS_SOURCE_DIR))
-    + "/imageData/SceauxCastle/";
-  Image<RGBColor> image;
-  const string jpg_filenameL = sInputDir + "100_7101.jpg";
-  const string jpg_filenameR = sInputDir + "100_7102.jpg";
+  //const std::string sInputDir = stlplus::folder_up(string(THIS_SOURCE_DIR))
+  //  + "/imageData/SceauxCastle/";
+  ////Image<RGBColor> image;
+  //const string jpg_filenameL = sInputDir + "100_7101.jpg";
+  //const string jpg_filenameR = sInputDir + "100_7102.jpg";
+
+    
+    string camera_K_file = "H:/projects/SLAM/dataset/K.txt";
+    string im1 = "1.jpg";
+    string im2 = "2.jpg";
+    string output_json_file = "output.json";
+
+    CmdLine cmd;
+    cmd.add ( make_option ( 'K', camera_K_file, "camera_K_file" ) );
+    cmd.add ( make_option ( 'a', im1, "image1" ) );
+    cmd.add ( make_option ( 'b', im2, "image2" ) );
+    cmd.add ( make_option ( 'o', output_json_file, "output_json file" ) );
+
+
+    try {
+        if ( argc == 1 ) throw std::string ( "Invalid command line parameter." );
+        cmd.process ( argc, argv );
+    }
+    catch ( const std::string& s ) {
+        std::cerr << "Usage: " << argv[0] << ' '
+            << "[-K|--camera_K_file - the file stores K values]\n"
+            << "[-a|--image1 - the file name of image1, absolute path, eg. H:/dataset/1.jpg]\n"
+            << "[-b|--image2 - the name of image2]\n"
+            << "[-o|--output_json_file - json file for the R,t]\n"
+            << std::endl;
+
+        std::cerr << s << std::endl;
+        return EXIT_FAILURE;
+    }
+
+
+
+
+
+
+    const string jpg_filenameL = im1;
+    const string jpg_filenameR = im2;
+
+    const string save_path = im1 + '_' + im2;
+    stlplus::folder_create ( save_path );
+    stlplus::folder_set_current ( save_path );
+
 
   Image<unsigned char> imageL, imageR;
   ReadImage(jpg_filenameL.c_str(), &imageL);
@@ -139,7 +188,7 @@ int main() {
   {
     Mat3 K;
     //read K from file
-    if (!readIntrinsic(stlplus::create_filespec(sInputDir,"K","txt"), K))
+    if (!readIntrinsic(camera_K_file, K))
     {
       std::cerr << "Cannot read intrinsic parameters." << std::endl;
       return EXIT_FAILURE;
@@ -193,16 +242,46 @@ int main() {
       << relativePose_info.relativePose.rotation() << "\n\n"
       << relativePose_info.relativePose.translation() << "\n" << std::endl;
 
+    // Save R,t to file
+    json j;
+    j["im1"] = im1;
+    j["im2"] = im2;
+
+    //[https://stackoverflow.com/questions/8443102/convert-eigen-matrix-to-c-array](https://stackoverflow.com/a/40271252/7067150)
+    std::vector<double> rotation_vec ( 9 );
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose_info.relativePose.rotation ().transpose ();
+
+    std::vector<double> K_vec ( 9 );
+    Eigen::Map<Eigen::MatrixXd> ( K_vec.data (), 3, 3 ) = K.transpose ();
+
+
+    Vec3 translation_Vec = relativePose_info.relativePose.translation ();
+    std::vector<double> translation_vec{ translation_Vec ( 0 ) , translation_Vec ( 1 ), translation_Vec (2) };
+    
+
+    j["R"] = rotation_vec;
+    j["t"] = translation_vec;
+    j["K"] = K_vec;
+
+    // write prettified JSON to another file
+    cout << "Going to save json to " << output_json_file << endl;
+    std::ofstream o ( output_json_file );
+    o << std::setw ( 4 ) << j << std::endl;
+    cout << "Save json done" << endl;
+
+
     //C. Triangulate and check valid points
     // invalid points that do not respect cheirality are discarded (removed
     //  from the list of inliers).
 
-    std::cout << "Which BA do you want ?\n"
-      << "\t 1: Refine [X],[f,ppx,ppy,R|t] (individual cameras)\n"
-      << "\t 2: Refine [X],[R|t], shared [f, ppx, ppy]\n"
-      << "\t 3: Refine [X],[R|t], shared brown K3 distortion model [f,ppx,ppy,k1,k2,k3]\n" << std::endl;
-    int iBAType = -1;
-    std::cin >> iBAType;
+    cout << "BA with Refine [X],[R|t], shared [f, ppx, ppy]" << endl;
+    //std::cout << "Which BA do you want ?\n"
+    //  << "\t 1: Refine [X],[f,ppx,ppy,R|t] (individual cameras)\n"
+    //  << "\t 2: Refine [X],[R|t], shared [f, ppx, ppy]\n"
+    //  << "\t 3: Refine [X],[R|t], shared brown K3 distortion model [f,ppx,ppy,k1,k2,k3]\n" << std::endl;
+    //int iBAType = -1;
+    //std::cin >> iBAType;
+    int iBAType = 2;
     const bool bSharedIntrinsic = (iBAType == 2 || iBAType == 3) ? true : false;
 
     // Setup a SfM scene with two view corresponding the pictures

@@ -28,19 +28,68 @@
 #include <string>
 #include <utility>
 
+#include <cmdLine/cmdLine.h>
+
+#include "json.hpp"
+
+
+/// OpenCV Includes
+#include <opencv2/opencv.hpp>
+#include "opencv2/core/eigen.hpp"
+
+
+
 using namespace openMVG;
 using namespace openMVG::image;
 using namespace openMVG::matching;
 using namespace openMVG::robust;
 using namespace std;
 
-int main() {
+
+using json = nlohmann::json;
+
+int main( int argc, char **argv ) {
+
+    string im1 = "1.jpg";
+    string im2 = "2.jpg";
+    string output_json_file = "output.json";
+
+    CmdLine cmd;
+    cmd.add ( make_option ( 'a', im1, "image1" ) );
+    cmd.add ( make_option ( 'b', im2, "image2" ) );
+    cmd.add ( make_option ( 'o', output_json_file, "output_json file" ) );
+
+
+
+    try {
+        if ( argc == 1 ) throw std::string ( "Invalid command line parameter." );
+        cmd.process ( argc, argv );
+    }
+    catch ( const std::string& s ) {
+        std::cerr << "Usage: " << argv[0] << ' '
+            << "[-a|--image1 - the file name of image1, absolute path, eg. H:/dataset/1.jpg]\n"
+            << "[-b|--image2 - the name of image2]\n"
+            << "[-o|--output_json_file - json file for the R,t]\n"
+            << std::endl;
+
+        std::cerr << s << std::endl;
+        return EXIT_FAILURE;
+    }
+
+
+
 
   Image<RGBColor> image;
-  const string jpg_filenameL = stlplus::folder_up(string(THIS_SOURCE_DIR))
-    + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
-  const string jpg_filenameR = stlplus::folder_up(string(THIS_SOURCE_DIR))
-    + "/imageData/StanfordMobileVisualSearch/Ace_1.png";
+  //const string jpg_filenameL = stlplus::folder_up(string(THIS_SOURCE_DIR))
+  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
+  //const string jpg_filenameR = stlplus::folder_up(string(THIS_SOURCE_DIR))
+  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
+
+  //const string jpg_filenameL = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_000.png";
+  //const string jpg_filenameR = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_500.png";
+
+  const string jpg_filenameL = im1;
+  const string jpg_filenameR = im2;
 
   Image<unsigned char> imageL, imageR;
   ReadImage(jpg_filenameL.c_str(), &imageL);
@@ -144,6 +193,21 @@ int main() {
       true);
     const double & thresholdH = ACRansacOut.first;
 
+
+    cout << "\t-- H matrix:\t" << H << endl;
+    cv::Mat srcPoints, dstPoints;
+    cv::eigen2cv ( xL, srcPoints );
+    cv::eigen2cv ( xR, dstPoints );
+
+
+    cout << "xL.size" << xL.size () << endl;
+    cout << "srcPoints.size" << srcPoints.size () << endl;
+
+    cv::Mat H_OCV = cv::findHomography ( srcPoints.t(), dstPoints.t (), cv::RANSAC, 3 );
+    cout << "H_OCV:\n" << H_OCV << endl;
+
+
+
     // Check the homography support some point to be considered as valid
     if (vec_inliers.size() > KernelType::MINIMUM_SAMPLES *2.5) {
 
@@ -186,10 +250,29 @@ int main() {
 
       std::cout << std::endl
         << "Homography matrix estimation, residuals statistics:" << "\n"
+        << "\t-- H matrix:\t" << H << std::endl
         << "\t-- Residual min:\t" << dMin << std::endl
         << "\t-- Residual median:\t" << dMedian << std::endl
         << "\t-- Residual max:\t "  << dMax << std::endl
         << "\t-- Residual mean:\t " << dMean << std::endl;
+
+      // Save R,t to file
+      json j;
+      j["im1"] = im1;
+      j["im2"] = im2;
+
+      std::vector<double> H_vec ( 9 );
+      Eigen::Map<Eigen::MatrixXd> ( H_vec.data (), 3, 3 ) = H.transpose ();
+
+      j["H"] = H_vec;
+
+      // write prettified JSON to another file
+      cout << "Going to save json to " << output_json_file << endl;
+      std::ofstream o ( output_json_file );
+      o << std::setw ( 4 ) << j << std::endl;
+      cout << "Save json done" << endl;
+
+
 
 
       //---------------------------------------
