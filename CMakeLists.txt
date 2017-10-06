@@ -42,35 +42,13 @@ link_libraries(${OPENMVG_LIBRARIES} ${OpenCV_LIBS})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}) # for the json.hpp
 
-#add_subdirectory(cameras_undisto_Brown)
-#add_subdirectory(multiview_robust_estimation_tutorial)
+
 add_subdirectory(multiview_robust_homography)
-#add_subdirectory(multiview_robust_homography_guided)
-#add_subdirectory(multiview_robust_fundamental)
-#add_subdirectory(multiview_robust_fundamental_guided)
 add_subdirectory(multiview_robust_essential)
-#add_subdirectory(multiview_robust_essential_spherical)
 add_subdirectory(multiview_robust_essential_ba)
 
 add_subdirectory(multiview_robust_pnp)
 add_subdirectory(multiview_robust_icp)
-
-
-#
-#add_subdirectory(exif_Parsing)
-#
-#add_subdirectory(features_repeatability)
-#add_subdirectory(features_affine_demo)
-#add_subdirectory(features_kvld_filter)
-#add_subdirectory(features_siftPutativeMatches)
-#add_subdirectory(features_image_matching)
-#add_subdirectory(describe_and_match_GUI)
-#
-##add_subdirectory(geodesy_show_exif_gps_position) # needs helper function in source code
-#add_subdirectory(image_spherical_to_pinholes)
-#
-#add_subdirectory(image_undistort_gui)
-
 
 
 add_subdirectory(main_ComputeFeatures_OpenCV)
