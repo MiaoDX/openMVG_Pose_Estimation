@@ -48,7 +48,7 @@ add_subdirectory(multiview_robust_essential)
 add_subdirectory(multiview_robust_essential_ba)
 
 add_subdirectory(multiview_robust_pnp)
+add_subdirectory(multiview_robust_pnp_mvg)
 add_subdirectory(multiview_robust_icp)
-
 
 add_subdirectory(main_ComputeFeatures_OpenCV)
