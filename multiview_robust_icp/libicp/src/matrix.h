@@ -26,6 +26,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <stdlib.h>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #ifndef _MSC_VER
   #include <stdint.h>
