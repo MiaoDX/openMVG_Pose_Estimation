@@ -36,6 +36,8 @@
 
 #include "robustRelativePoseHelper.h"
 
+#include "AFD.h"
+
 using namespace openMVG;
 using namespace openMVG::image;
 using namespace openMVG::matching;
@@ -397,6 +399,7 @@ int main( int argc, char **argv )
     save_Rt_to_json ( relativePose_after_BA, j );
     
 
+    j["AFD"] = AFD ( xL, xR );
 
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;

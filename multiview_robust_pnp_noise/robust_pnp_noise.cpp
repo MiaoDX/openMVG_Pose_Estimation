@@ -39,6 +39,8 @@
 
 #include "simulate_noise.h"
 
+#include "AFD.h"
+
 using namespace openMVG;
 using namespace openMVG::image;
 using namespace openMVG::matching;
@@ -302,6 +304,8 @@ int main( int argc, char **argv ) {
     j["R"] = rotation_vec;
     j["t"] = translation_vec;
     j["K"] = K_vec;
+
+    j["AFD"] = AFD ( xL, xR );
 
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;

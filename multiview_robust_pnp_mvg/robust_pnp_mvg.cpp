@@ -41,6 +41,9 @@
 #include "openMVG/multiview/solver_resection_kernel.hpp"
 #include "openMVG/multiview/solver_resection_p3p.hpp"
 #include <openMVG/sfm/sfm.hpp>
+
+#include "AFD.h"
+
 using namespace openMVG::sfm;
 
 using namespace openMVG;
@@ -354,6 +357,8 @@ int main( int argc, char **argv ) {
     j["R"] = rotation_vec;
     j["t"] = translation_vec;
     j["K"] = K_vec;
+
+    j["AFD"] = AFD ( xL, xR );
 
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;

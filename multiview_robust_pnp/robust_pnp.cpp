@@ -37,7 +37,7 @@
 #include <opencv2/opencv.hpp>
 #include "opencv2/core/eigen.hpp"
 
-
+#include "AFD.h"
 
 using namespace openMVG;
 using namespace openMVG::image;
@@ -276,6 +276,9 @@ int main( int argc, char **argv ) {
     j["R"] = rotation_vec;
     j["t"] = translation_vec;
     j["K"] = K_vec;
+
+    j["AFD"] = AFD ( xL, xR );
+    j["AFD2"] = AFD2 ( xL, xR );
 
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;

@@ -153,7 +153,7 @@ bool robustRelativePoseCopy
     if ( relativePose_info.vec_inliers.size () <
         2.5 * openMVG::essential::kernel::FivePointKernel::MINIMUM_SAMPLES )
     {
-        cout << "no sufficient coverage (the model does not support enough samples)" << endl;
+        std::cerr << "no sufficient coverage (the model does not support enough samples)" << endl;
         return false; // no sufficient coverage (the model does not support enough samples)
     }
 

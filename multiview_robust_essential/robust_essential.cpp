@@ -32,6 +32,7 @@
 
 #include "robustRelativePoseHelper.h"
 
+#include "AFD.h"
 
 using namespace openMVG;
 using namespace openMVG::matching;
@@ -209,6 +210,9 @@ int main( int argc, char **argv ) {
     std::pair<size_t, size_t> size_imaL(imageL.Width(), imageL.Height());
     std::pair<size_t, size_t> size_imaR(imageR.Width(), imageR.Height());
     sfm::RelativePose_Info relativePose_info;
+
+    cout << "Going to do the robustRelativePose" << endl;
+
     //if (!sfm::robustRelativePose(K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 256))
     if ( !robustRelativePoseCopy ( K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ) )
     {
@@ -318,6 +322,8 @@ int main( int argc, char **argv ) {
 
       j["R"] = rotation_vec;
       j["t"] = translation_vec;
+      
+      j["AFD"] = AFD ( xL, xR );
 
       // write prettified JSON to another file
       cout << "Going to save json to " << output_json_file << endl;
