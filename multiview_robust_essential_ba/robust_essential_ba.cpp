@@ -34,6 +34,7 @@
 
 #include "json.hpp"
 
+#include "robustRelativePoseHelper.h"
 
 using namespace openMVG;
 using namespace openMVG::image;
@@ -50,6 +51,42 @@ using json = nlohmann::json;
 /// 0 F ppy
 /// 0 0 1
 bool readIntrinsic(const std::string & fileName, Mat3 & K);
+
+openMVG::geometry::Pose3 relative_pose( const openMVG::geometry::Pose3 query_pose, const openMVG::geometry::Pose3 reference_pose)
+{
+    const openMVG::geometry::Pose3 relativePose = query_pose * (reference_pose.inverse ());
+    Eigen::MatrixXd R_mvg = relativePose.rotation ();
+    Eigen::MatrixXd t_mvg = relativePose.translation ();
+    cout << "SFM: R:\n" << R_mvg << endl;
+    cout << "SFM: t:\n" << t_mvg << endl;
+    return relativePose;
+}
+
+
+void save_Rt_to_json( openMVG::geometry::Pose3 relativePose, json& j)
+{
+    Eigen::MatrixXd R_mvg = relativePose.rotation ();
+    Eigen::MatrixXd t_mvg = relativePose.translation ();
+
+    
+    std::vector<double> rotation_vec ( 9 );
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation ();
+    Vec3 translation_Vec = relativePose.translation ();
+    std::vector<double> translation_vec{ translation_Vec ( 0 ) , translation_Vec ( 1 ), translation_Vec ( 2 ) };
+    
+    cout << "In save_Rt_to_json:" << endl;
+    cout << "    R:\n" << R_mvg << endl;
+    cout << "    t:\n" << t_mvg << endl;
+    
+
+    j["R"] = rotation_vec;
+    j["t"] = translation_vec;
+
+    
+}
+
+
+
 
 /// Show :
 ///  how computing an essential with know internal calibration matrix K
@@ -208,7 +245,8 @@ int main( int argc, char **argv )
     std::pair<size_t, size_t> size_imaL(imageL.Width(), imageL.Height());
     std::pair<size_t, size_t> size_imaR(imageR.Width(), imageR.Height());
     RelativePose_Info relativePose_info;
-    if (!robustRelativePose(K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 256))
+    if (!robustRelativePose(K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ))
+    //if ( !robustRelativePoseCopy ( K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ) )
     {
       std::cerr << " /!\\ Robust relative pose estimation failure."
         << std::endl;
@@ -247,28 +285,21 @@ int main( int argc, char **argv )
     j["im1"] = im1;
     j["im2"] = im2;
 
-    //[https://stackoverflow.com/questions/8443102/convert-eigen-matrix-to-c-array](https://stackoverflow.com/a/40271252/7067150)
-    std::vector<double> rotation_vec ( 9 );
-    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose_info.relativePose.rotation ().transpose ();
-
     std::vector<double> K_vec ( 9 );
     Eigen::Map<Eigen::MatrixXd> ( K_vec.data (), 3, 3 ) = K.transpose ();
-
-
-    Vec3 translation_Vec = relativePose_info.relativePose.translation ();
-    std::vector<double> translation_vec{ translation_Vec ( 0 ) , translation_Vec ( 1 ), translation_Vec (2) };
+    j["K"] = K_vec;
     
 
-    j["R"] = rotation_vec;
-    j["t"] = translation_vec;
-    j["K"] = K_vec;
+    
 
+    /*
+    save_Rt_to_json ( relativePose_info.relativePose, j );
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;
     std::ofstream o ( output_json_file );
     o << std::setw ( 4 ) << j << std::endl;
     cout << "Save json done" << endl;
-
+    */
 
     //C. Triangulate and check valid points
     // invalid points that do not respect cheirality are discarded (removed
@@ -310,9 +341,16 @@ int main( int argc, char **argv )
     const Pose3 pose0 = tiny_scene.poses[tiny_scene.views[0]->id_pose] = Pose3(Mat3::Identity(), Vec3::Zero());
     const Pose3 pose1 = tiny_scene.poses[tiny_scene.views[1]->id_pose] = relativePose_info.relativePose;
 
+    std::cout << std::endl
+        << "-- Before BA --" << "\n";
+    relative_pose ( pose1, pose0 );
+
+
+
     // Init structure by inlier triangulation
     const Mat34 P1 = tiny_scene.intrinsics[tiny_scene.views[0]->id_intrinsic]->get_projective_equivalent(pose0);
     const Mat34 P2 = tiny_scene.intrinsics[tiny_scene.views[1]->id_intrinsic]->get_projective_equivalent(pose1);
+
     Landmarks & landmarks = tiny_scene.structure;
     for (size_t i = 0; i < relativePose_info.vec_inliers.size(); ++i)  {
       const SIOPointFeature & LL = regionsL->Features()[vec_PutativeMatches[relativePose_info.vec_inliers[i]].i_];
@@ -335,14 +373,44 @@ int main( int argc, char **argv )
     //D. Perform Bundle Adjustment of the scene
 
     Bundle_Adjustment_Ceres bundle_adjustment_obj;
-    bundle_adjustment_obj.Adjust(tiny_scene,
+    /*bundle_adjustment_obj.Adjust(tiny_scene,
       Optimize_Options(
         Intrinsic_Parameter_Type::ADJUST_ALL,
         Extrinsic_Parameter_Type::ADJUST_ALL,
-        Structure_Parameter_Type::ADJUST_ALL));
+        Structure_Parameter_Type::ADJUST_ALL));*/
+
+    bundle_adjustment_obj.Adjust ( tiny_scene,
+        Optimize_Options (
+            Intrinsic_Parameter_Type::NONE,
+            Extrinsic_Parameter_Type::ADJUST_ALL,
+            Structure_Parameter_Type::NONE ) );
 
     Save(tiny_scene, "EssentialGeometry_refined.ply", ESfM_Data(ALL));
+
+    Pose3 pose00 = tiny_scene.poses[tiny_scene.views[0]->id_pose];
+    Pose3 pose11 = tiny_scene.poses[tiny_scene.views[1]->id_pose];
+
+    std::cout << std::endl
+        << "-- After BA --" << "\n";
+    const openMVG::geometry::Pose3 relativePose_after_BA = relative_pose ( pose11, pose00 );
+
+    save_Rt_to_json ( relativePose_after_BA, j );
+    
+
+
+    // write prettified JSON to another file
+    cout << "Going to save json to " << output_json_file << endl;
+    std::ofstream o ( output_json_file );
+    o << std::setw ( 4 ) << j << std::endl;
+    cout << "Save json done" << endl;
+
+
+
   }
+
+
+
+
   return EXIT_SUCCESS;
 }
 

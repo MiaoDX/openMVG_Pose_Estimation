@@ -268,7 +268,7 @@ int main( int argc, char **argv ) {
     Mat R_eigen;
     cv::cv2eigen ( R, R_eigen );
     std::vector<double> rotation_vec ( 9 );
-    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = R_eigen.transpose();
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = R_eigen;
     std::vector<double> translation_vec{ t.at<double>( 0 ) , t.at<double> ( 1 ), t.at<double> ( 2 ) };
     std::vector<double> K_vec ( 9 );
     Eigen::Map<Eigen::MatrixXd> ( K_vec.data (), 3, 3 ) = K.transpose ();

@@ -37,11 +37,7 @@
 #include <opencv2/opencv.hpp>
 #include "opencv2/core/eigen.hpp"
 
-
-#include "openMVG/multiview/solver_resection_kernel.hpp"
-#include "openMVG/multiview/solver_resection_p3p.hpp"
-#include <openMVG/sfm/sfm.hpp>
-using namespace openMVG::sfm;
+#include "simulate_noise.h"
 
 using namespace openMVG;
 using namespace openMVG::image;
@@ -63,11 +59,16 @@ cv::Point2d pixel2cam ( const cv::Point2d& p, const cv::Mat& K )
     );
 }
 
+
+
 int main( int argc, char **argv ) {
 
     string im1 = "1.jpg";
     string im2 = "2.jpg";
     string im1_depth = "1_depth.jpg";
+    string im1_normal = "1_normal.jpg";
+
+
     string output_json_file = "output.json";
     string camera_K_file = "H:/projects/SLAM/dataset/K.txt";
 
@@ -75,6 +76,8 @@ int main( int argc, char **argv ) {
     cmd.add ( make_option ( 'a', im1, "image1" ) );
     cmd.add ( make_option ( 'b', im2, "image2" ) );
     cmd.add ( make_option ( 'l', im1_depth, "image1_depth" ) );
+    cmd.add ( make_option ( 'n', im1_normal, "image1_normal" ) );    
+
     cmd.add ( make_option ( 'K', camera_K_file, "camera_K_file" ) );
     cmd.add ( make_option ( 'o', output_json_file, "output_json file" ) );
 
@@ -89,6 +92,7 @@ int main( int argc, char **argv ) {
             << "[-a|--image1 - the file name of image1, absolute path, eg. H:/dataset/1.jpg]\n"
             << "[-b|--image2 - the name of image2]\n"
             << "[-l|--image1_depth - the name of image1 depth]\n"
+            << "[-n|--image1_normal - the name of image1 normal]\n"
             << "[-K|--camera_K_file - the file stores K values]\n"
             << "[-o|--output_json_file - json file for the R,t]\n"
             << std::endl;
@@ -215,6 +219,8 @@ int main( int argc, char **argv ) {
 
     // 建立3D点
     cv::Mat d1 = cv::imread ( im1_depth, CV_LOAD_IMAGE_UNCHANGED );       // 深度图为16位无符号数，单通道图像
+    
+
     vector<cv::Point3f> pts_3d;
     vector<cv::Point2f> pts_2d;
     /*
@@ -252,6 +258,22 @@ int main( int argc, char **argv ) {
     }
 
 
+    vector<cv::Vec3b> pts_3d_normal;
+    cv::Mat normal1 = cv::imread ( im1_normal, CV_LOAD_IMAGE_UNCHANGED );
+    for ( size_t k = 0; k < xL.cols (); ++k ) {
+        cv::Point2d kp1 ( xL.col ( k ).x (), xL.col ( k ).y () );
+        ushort d = d1.ptr<unsigned short> ( int ( kp1.y ) )[int ( kp1.x )];
+        if ( d == 0 )   // bad depth
+            continue;
+        
+        //src.at<Vec3b> ( nrows, ncols );
+        pts_3d_normal.push_back (normal1.at<cv::Vec3b>( kp1.y , kp1.x));
+    }
+
+
+    simulate_kinect_noise_on_3d<double> ( pts_3d_normal,  pts_3d, K_OCV.at<double>(0,0) );
+
+
     cv::Mat r, t;
     //solvePnP ( pts_3d, pts_2d, K, Mat(), r, t, false ); // 调用OpenCV 的 PnP 求解，可选择EPNP，DLS等方法
     solvePnPRansac ( pts_3d, pts_2d, K_OCV, cv::Mat (), r, t, false );
@@ -264,87 +286,16 @@ int main( int argc, char **argv ) {
     cout << "t=" << endl << t << endl;
 
 
-    Mat pt3D ( 3, pts_3d.size () ), pt2D ( 2, pts_3d.size () );;
-
-    //pt3D = Mat( pts_3d.data ());
-    //pt2D = Mat ( pts_2d.data () );
-
-      
-    for ( size_t k = 0; k < pts_3d.size (); ++k ) {
-        pt3D.col ( k ) = Eigen::Vector3d ( pts_3d[k].x, pts_3d[k].y, pts_3d[k].z ).cast<double> ();
-        //pt2D.col ( k ) = Eigen::Vector2d ( pts_2d[k].x, pts_2d[k].y ).cast<double> ();
-        pt2D.col ( k ) = Eigen::Vector2d ( pts_2d[k].x, pts_2d[k].y ).cast<double> ();
-    }
-    
-    cout << "pts3D cols:" << pt3D.cols() << ", rows:" << pt3D.rows() << endl;
-
-    geometry::Pose3 pose;
-    sfm::Image_Localizer_Match_Data matching_data;
-
-    matching_data.pt3D = pt3D;
-    matching_data.pt2D = pt2D;
-
-    sfm::SfM_Localization_Single_3DTrackObservation_Database localizer;
-
-    cameras::Pinhole_Intrinsic_Radial_K3 *ptrPinhole = new cameras::Pinhole_Intrinsic_Radial_K3 (
-        imageL.Width (), imageL.Height (), K_OCV.at<double>(0, 0), K_OCV.at<double>(0, 2), K_OCV.at<double>(1, 2), 0., 0., 0. );
-    // (w, h, config._fx, config._cx, config._cy, 0., 0., 0.);
-
-    std::shared_ptr<cameras::IntrinsicBase> optional_intrinsic  = std::make_shared<cameras::Pinhole_Intrinsic_Radial_K3> (
-            imageL.Width (), imageL.Height (),
-            ptrPinhole->focal (), ptrPinhole->principal_point ()[0], ptrPinhole->principal_point ()[1],
-            ptrPinhole->getParams ()[3], ptrPinhole->getParams ()[4], ptrPinhole->getParams ()[5] );    
-        
-    bool bSuccessfulLocalization = false;
-
-    if ( !SfM_Localizer::Localize ( Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
-        matching_data, pose )
-    )
-    {
-        std::cerr << "Cannot locate the image " << im1 << std::endl;
-        bSuccessfulLocalization = false;
-    }
-    else
-    {        
-        if ( !sfm::SfM_Localizer::RefinePose
-        (
-            optional_intrinsic.get (),
-            pose, matching_data,
-            true, optional_intrinsic.get()
-        ) )
-        {
-            std::cerr << "Refining pose for image " << im1 << " failed." << std::endl;
-        }
-
-        bSuccessfulLocalization = true;
-
-//        cout << "The refined answers:" << endl;
-
-    }
-
-
-    // https://github.com/openMVG/openMVG/blob/develop/src/openMVG/sfm/pipelines/sfm_robust_model_estimation.cpp
-    // Store [R|C] for the second camera, since the first camera is [Id|0]
-    //relativePose_info.relativePose = geometry::Pose3 ( R, -R.transpose () * t );
-    Pose3 relativePose = Pose3 ( pose.rotation (), -pose.rotation ().transpose ()*pose.translation () );
-
-
-    cout << "Pose rotation:\n" << pose.rotation () << endl;
-    cout << "Pose translation:\n" << pose.translation () << endl;
-
-    cout << "Relative Pose rotation:\n" << relativePose.rotation () << endl;
-    cout << "Relative Pose translation:\n" << relativePose.translation () << endl;
-
-    
     // Save R,t to file
     json j;
     j["im1"] = im1;
     j["im2"] = im2;
 
     Mat R_eigen;
+    cv::cv2eigen ( R, R_eigen );
     std::vector<double> rotation_vec ( 9 );
-    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation();
-    std::vector<double> translation_vec{ relativePose.translation ()( 0 ) , relativePose.translation () ( 1 ), relativePose.translation () ( 2 ) };
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = R_eigen.transpose();
+    std::vector<double> translation_vec{ t.at<double>( 0 ) , t.at<double> ( 1 ), t.at<double> ( 2 ) };
     std::vector<double> K_vec ( 9 );
     Eigen::Map<Eigen::MatrixXd> ( K_vec.data (), 3, 3 ) = K.transpose ();
 
@@ -359,6 +310,7 @@ int main( int argc, char **argv ) {
     cout << "Save json done" << endl;
 
   }
+  
   return EXIT_SUCCESS;
 }
 
