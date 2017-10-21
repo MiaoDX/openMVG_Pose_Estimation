@@ -296,10 +296,13 @@ int main( int argc, char **argv ) {
             ptrPinhole->getParams ()[3], ptrPinhole->getParams ()[4], ptrPinhole->getParams ()[5] );    
         
     bool bSuccessfulLocalization = false;
-
-    if ( !SfM_Localizer::Localize ( Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
+    
+    if ( !SfM_Localizer::Localize ( resection::SolverType::P3P_KE_CVPR17, Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
         matching_data, pose )
-    )
+        )
+    //if ( !SfM_Localizer::Localize ( Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
+    //    matching_data, pose )
+    //)
     {
         std::cerr << "Cannot locate the image " << im1 << std::endl;
         bSuccessfulLocalization = false;

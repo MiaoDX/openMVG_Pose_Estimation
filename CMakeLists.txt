@@ -68,7 +68,7 @@ endif(USE_OPENMP)
 
 add_subdirectory(multiview_robust_homography)
 add_subdirectory(multiview_robust_essential)
-add_subdirectory(multiview_robust_essential_ba)
+
 
 add_subdirectory(multiview_robust_essential_cv)
 

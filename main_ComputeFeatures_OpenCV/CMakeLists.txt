@@ -1,5 +1,5 @@
 
-add_definitions(-DUSE_OCVSIFT)
+#add_definitions(-DUSE_OCVSIFT)
 
 
 add_executable(main_ComputeFeatures_OpenCV main_ComputeFeatures_OpenCV.cpp)
