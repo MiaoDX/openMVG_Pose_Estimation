@@ -171,6 +171,8 @@ bool robustRelativePoseCopy
         cout << "cannot find a valid [R|t] couple that makes the inliers in front of the camera." << endl;
         //return false; // cannot find a valid [R|t] couple that makes the inliers in front of the camera.
         cout << "There is no good" << endl;
+        cout << "Going to penalize the translation, since most of the time it is the pure translation" << endl;
+        t = t / 1000;
     }
 
     // Store [R|C] for the second camera, since the first camera is [Id|0]

@@ -247,8 +247,8 @@ int main( int argc, char **argv )
     std::pair<size_t, size_t> size_imaL(imageL.Width(), imageL.Height());
     std::pair<size_t, size_t> size_imaR(imageR.Width(), imageR.Height());
     RelativePose_Info relativePose_info;
-    if (!robustRelativePose(K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ))
-    //if ( !robustRelativePoseCopy ( K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ) )
+    //if (!robustRelativePose(K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ))
+    if ( !robustRelativePoseCopy ( K, K, xL, xR, relativePose_info, size_imaL, size_imaR, 4096 ) )
     {
       std::cerr << " /!\\ Robust relative pose estimation failure."
         << std::endl;
