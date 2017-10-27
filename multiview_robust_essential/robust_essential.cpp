@@ -298,11 +298,20 @@ int main( int argc, char **argv ) {
       exportToPly(vec_3DPoints, vec_camPos, "EssentialGeometry.ply");
 
 
+      cout << "Pose0 is [I|0]" << endl;
+      cout << "pose0 rotation:\n" << pose0.rotation () << endl;
+      cout << "pose0 translation:\n" << pose0.translation () << endl;
+      cout << "pose0 center:\n" << pose0.center () << endl;
+       
+      cout << "pose1 rotation:\n" << pose1.rotation () << endl;
+      cout << "pose1 translation:\n" << pose1.translation () << endl;
+      cout << "pose1 center:\n" << pose1.center () << endl;
 
       //const openMVG::geometry::Pose3 relativePose = query_pose * (reference_pose.inverse ());
       //const openMVG::geometry::Pose3 relativePose = pose1 * (pose0.inverse ());
-      cout << "Relative Pose from robustRelativePose, rotation:\n" << relativePose_info.relativePose.rotation() << endl;
+      cout << "(Pose1) Relative Pose from robustRelativePose, rotation:\n" << relativePose_info.relativePose.rotation() << endl;
       cout << "translation:" << relativePose_info.relativePose.translation () << endl;
+      cout << "ceter:" << relativePose_info.relativePose.center () << endl;
 
       //cout << "Relative Pose from Calc by hand, rotation:\n" << relativePose.translation () << endl;
       //cout << "translation:" << relativePose.translation () << endl;
@@ -316,7 +325,7 @@ int main( int argc, char **argv ) {
       j["K"] = K_vec;
 
       std::vector<double> rotation_vec ( 9 );
-      Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose_info.relativePose.rotation ();
+      Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose_info.relativePose.rotation ().transpose();
       Vec3 translation_Vec = relativePose_info.relativePose.translation ();
       std::vector<double> translation_vec{ translation_Vec ( 0 ) , translation_Vec ( 1 ), translation_Vec ( 2 ) };
 

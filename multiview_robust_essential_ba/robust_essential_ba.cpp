@@ -72,7 +72,7 @@ void save_Rt_to_json( openMVG::geometry::Pose3 relativePose, json& j)
 
     
     std::vector<double> rotation_vec ( 9 );
-    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation ();
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation ().transpose ();
     Vec3 translation_Vec = relativePose.translation ();
     std::vector<double> translation_vec{ translation_Vec ( 0 ) , translation_Vec ( 1 ), translation_Vec ( 2 ) };
     

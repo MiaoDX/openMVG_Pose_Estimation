@@ -1,4 +1,4 @@
-
+add_executable(RT RT.cpp)
 add_executable(TEST Test.cpp)
 target_link_libraries(TEST
   openMVG_image

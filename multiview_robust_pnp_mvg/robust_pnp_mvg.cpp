@@ -267,6 +267,7 @@ int main( int argc, char **argv ) {
     cout << "t=" << endl << t << endl;
 
 
+
     Mat pt3D ( 3, pts_3d.size () ), pt2D ( 2, pts_3d.size () );;
 
     //pt3D = Mat( pts_3d.data ());
@@ -300,12 +301,13 @@ int main( int argc, char **argv ) {
         
     bool bSuccessfulLocalization = false;
     
-    //if ( !SfM_Localizer::Localize ( resection::SolverType::P3P_KE_CVPR17, Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
-    //    matching_data, pose )
-    //    )
-    if ( !SfM_Localizer::Localize ( Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
+    // P3P_KE_CVPR17 DLT_6POINTS P3P_KNEIP_CVPR11
+    if ( !SfM_Localizer::Localize ( resection::SolverType::P3P_KE_CVPR17, Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
         matching_data, pose )
-    )
+        )
+    //if ( !SfM_Localizer::Localize ( Pair ( imageL.Width (), imageL.Height () ), optional_intrinsic.get (),
+    //    matching_data, pose )
+    //)
     {
         std::cerr << "Cannot locate the image " << im1 << std::endl;
         bSuccessfulLocalization = false;
@@ -334,14 +336,23 @@ int main( int argc, char **argv ) {
     //relativePose_info.relativePose = geometry::Pose3 ( R, -R.transpose () * t );
     Pose3 relativePose = Pose3 ( pose.rotation (), -pose.rotation ().transpose ()*pose.translation () );
 
+    
+    cout << "Pose2 rotation:\n" << pose.rotation () << endl;
+    cout << "Pose2 translation:\n" << pose.translation () << endl;
+    cout << "Pose2 ceter:\n" << pose.center () << endl;
 
-    cout << "Pose rotation:\n" << pose.rotation () << endl;
-    cout << "Pose translation:\n" << pose.translation () << endl;
 
     cout << "Relative Pose rotation:\n" << relativePose.rotation () << endl;
     cout << "Relative Pose translation:\n" << relativePose.translation () << endl;
-
+    cout << "Relative Pose translation ceter:\n" << relativePose.center () << endl;
     
+    Vec3 lookingDir = relativePose.rotation ().transpose () * Vec3 ( 0, 0, 1 );
+    cout << "Looking at: " << lookingDir << endl;
+    Vec3 euler_angles = relativePose.rotation ().eulerAngles ( 2, 1, 0 );
+    cout << "euler_angles:" << euler_angles << endl;
+    Vec3 euler_angles2 = relativePose.rotation ().eulerAngles ( 0, 1, 2 );
+    cout << "euler_angles2:" << euler_angles2 << endl;
+
     // Save R,t to file
     json j;
     j["im1"] = im1;
@@ -349,7 +360,7 @@ int main( int argc, char **argv ) {
 
     Mat R_eigen;
     std::vector<double> rotation_vec ( 9 );
-    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation();
+    Eigen::Map<Eigen::MatrixXd> ( rotation_vec.data (), 3, 3 ) = relativePose.rotation().transpose();
     std::vector<double> translation_vec{ relativePose.translation ()( 0 ) , relativePose.translation () ( 1 ), relativePose.translation () ( 2 ) };
     std::vector<double> K_vec ( 9 );
     Eigen::Map<Eigen::MatrixXd> ( K_vec.data (), 3, 3 ) = K.transpose ();
