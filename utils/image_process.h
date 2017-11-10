@@ -223,9 +223,15 @@ void get_matches(string jpg_filenameL, string jpg_filenameR, std::vector<IndMatc
                 vec_residuals[i] = std::sqrt ( KernelType::ErrorT::Error ( H,
                     LL.coords ().cast<double> (),
                     RR.coords ().cast<double> () ) );
-                xL_Hfiltering.col ( i ) = LL.coords ().cast<double> ();
-                xR_Hfiltering.col ( i ) = RR.coords ().cast<double> ();
             }
+
+            for ( size_t k = 0; k < vec_inliers.size (); ++k ) {
+                const PointFeature & imaL = featsL[vec_PutativeMatches[vec_inliers[k]].i_];
+                const PointFeature & imaR = featsR[vec_PutativeMatches[vec_inliers[k]].j_];
+                xL_Hfiltering.col ( k ) = imaL.coords ().cast<double> ();
+                xR_Hfiltering.col ( k ) = imaR.coords ().cast<double> ();
+            }
+
 
             cout << "xL_Hfiltering:" << xL_Hfiltering.cols () << endl;
             //for ( size_t i = 0; i < xL_Hfiltering.cols (); ++i ) {
