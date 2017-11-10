@@ -44,6 +44,8 @@
 
 #include "AFD.h"
 
+#include "image_process.h"
+
 using namespace openMVG::sfm;
 
 using namespace openMVG;
@@ -56,16 +58,6 @@ using namespace std;
 using json = nlohmann::json;
 
 
-bool readIntrinsic ( const std::string & fileName, Mat3 & K );
-cv::Point2d pixel2cam ( const cv::Point2d& p, const cv::Mat& K )
-{
-    return cv::Point2d
-    (
-        (p.x - K.at<double> ( 0, 2 )) / K.at<double> ( 0, 0 ),
-        (p.y - K.at<double> ( 1, 2 )) / K.at<double> ( 1, 1 )
-    );
-}
-
 int main( int argc, char **argv ) {
 
     string im1 = "1.jpg";
@@ -73,14 +65,15 @@ int main( int argc, char **argv ) {
     string im1_depth = "1_depth.jpg";
     string output_json_file = "output.json";
     string camera_K_file = "H:/projects/SLAM/dataset/K.txt";
+    string H_filter = "0";
 
     CmdLine cmd;
     cmd.add ( make_option ( 'a', im1, "image1" ) );
     cmd.add ( make_option ( 'b', im2, "image2" ) );
     cmd.add ( make_option ( 'l', im1_depth, "image1_depth" ) );
     cmd.add ( make_option ( 'K', camera_K_file, "camera_K_file" ) );
-    cmd.add ( make_option ( 'o', output_json_file, "output_json file" ) );
-
+    cmd.add ( make_option ( 'o', output_json_file, "output_json" ) );
+    cmd.add ( make_option ( 'H', H_filter, "H_filter" ) );
 
 
     try {
@@ -94,6 +87,7 @@ int main( int argc, char **argv ) {
             << "[-l|--image1_depth - the name of image1 depth]\n"
             << "[-K|--camera_K_file - the file stores K values]\n"
             << "[-o|--output_json_file - json file for the R,t]\n"
+            << "[-H|--H_filter, 0 or 1]\n"
             << std::endl;
 
         std::cerr << s << std::endl;
@@ -102,112 +96,28 @@ int main( int argc, char **argv ) {
 
 
 
-
-  Image<RGBColor> image;
-  //const string jpg_filenameL = stlplus::folder_up(string(THIS_SOURCE_DIR))
-  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
-  //const string jpg_filenameR = stlplus::folder_up(string(THIS_SOURCE_DIR))
-  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
-
-  //const string jpg_filenameL = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_000.png";
-  //const string jpg_filenameR = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_500.png";
-
   const string jpg_filenameL = im1;
   const string jpg_filenameR = im2;
 
-  Image<unsigned char> imageL, imageR;
+  Image<unsigned char> imageL;
   ReadImage(jpg_filenameL.c_str(), &imageL);
-  ReadImage(jpg_filenameR.c_str(), &imageR);
 
-  //--
-  // Detect regions thanks to an image_describer
-  //--
-  using namespace openMVG::features;
-  std::unique_ptr<Image_describer> image_describer
-    (new SIFT_Anatomy_Image_describer(SIFT_Anatomy_Image_describer::Params(-1)));
-  std::map<IndexT, std::unique_ptr<features::Regions> > regions_perImage;
-  image_describer->Describe(imageL, regions_perImage[0]);
-  image_describer->Describe(imageR, regions_perImage[1]);
-
-  const SIFT_Regions* regionsL = dynamic_cast<SIFT_Regions*>(regions_perImage.at(0).get());
-  const SIFT_Regions* regionsR = dynamic_cast<SIFT_Regions*>(regions_perImage.at(1).get());
-
-  const PointFeatures
-    featsL = regions_perImage.at(0)->GetRegionsPositions(),
-    featsR = regions_perImage.at(1)->GetRegionsPositions();
-
-  // Show both images side by side
-  {
-    Image<unsigned char> concat;
-    ConcatH(imageL, imageR, concat);
-    string out_filename = "01_concat.jpg";
-    WriteImage(out_filename.c_str(), concat);
-  }
-
-  //- Draw features on the two image (side by side)
-  {
-    Features2SVG
-    (
-      jpg_filenameL,
-      {imageL.Width(), imageL.Height()},
-      regionsL->Features(),
-      jpg_filenameR,
-      {imageR.Width(), imageR.Height()},
-      regionsR->Features(),
-      "02_features.svg"
-    );
-  }
 
   std::vector<IndMatch> vec_PutativeMatches;
-  //-- Perform matching -> find Nearest neighbor, filtered with Distance ratio
+  Mat xL, xR, xL_Hfiltering, xR_Hfiltering;
+
+  get_matches ( jpg_filenameL, jpg_filenameR, vec_PutativeMatches, xL, xR, xL_Hfiltering, xR_Hfiltering );
+
+  cout << "H_filter:" << H_filter << endl;
+  if ( H_filter == "1" )
   {
-    // Find corresponding points
-    matching::DistanceRatioMatch(
-      0.8, matching::BRUTE_FORCE_L2,
-      *regions_perImage.at(0).get(),
-      *regions_perImage.at(1).get(),
-      vec_PutativeMatches);
-
-    IndMatchDecorator<float> matchDeduplicator (
-        vec_PutativeMatches, featsL, featsR );
-    matchDeduplicator.getDeduplicated ( vec_PutativeMatches );
-
-    std::cout
-        << regions_perImage.at ( 0 )->RegionCount () << " #Features on image A" << std::endl
-        << regions_perImage.at ( 1 )->RegionCount () << " #Features on image B" << std::endl
-        << vec_PutativeMatches.size () << " #matches with Distance Ratio filter" << std::endl;
-
-
-    // Draw correspondences after Nearest Neighbor ratio filter
-    const bool bVertical = true;
-    Matches2SVG
-    (
-      jpg_filenameL,
-      {imageL.Width(), imageL.Height()},
-      regionsL->GetRegionsPositions(),
-      jpg_filenameR,
-      {imageR.Width(), imageR.Height()},
-      regionsR->GetRegionsPositions(),
-      vec_PutativeMatches,
-      "03_Matches.svg",
-      bVertical
-    );
+      cout << "Using H_filter, replace xL and xR with filtered one" << endl;
+      xL = xL_Hfiltering;
+      xR = xR_Hfiltering;
   }
 
-  // Homography geometry filtering of putative matches
+   
   {
-    //A. get back interest point and send it to the robust estimation framework
-    Mat xL(2, vec_PutativeMatches.size());
-    Mat xR(2, vec_PutativeMatches.size());
-
-    for (size_t k = 0; k < vec_PutativeMatches.size(); ++k)  {
-      const PointFeature & imaL = featsL[vec_PutativeMatches[k].i_];
-      const PointFeature & imaR = featsR[vec_PutativeMatches[k].j_];
-      xL.col(k) = imaL.coords().cast<double>();
-      xR.col(k) = imaR.coords().cast<double>();
-    }
-
-
     Mat3 K;
     //read K from file
     if ( !readIntrinsic ( camera_K_file, K ) )
@@ -345,13 +255,6 @@ int main( int argc, char **argv ) {
     cout << "Relative Pose rotation:\n" << relativePose.rotation () << endl;
     cout << "Relative Pose translation:\n" << relativePose.translation () << endl;
     cout << "Relative Pose translation ceter:\n" << relativePose.center () << endl;
-    
-    Vec3 lookingDir = relativePose.rotation ().transpose () * Vec3 ( 0, 0, 1 );
-    cout << "Looking at: " << lookingDir << endl;
-    Vec3 euler_angles = relativePose.rotation ().eulerAngles ( 2, 1, 0 );
-    cout << "euler_angles:" << euler_angles << endl;
-    Vec3 euler_angles2 = relativePose.rotation ().eulerAngles ( 0, 1, 2 );
-    cout << "euler_angles2:" << euler_angles2 << endl;
 
     // Save R,t to file
     json j;
@@ -379,23 +282,4 @@ int main( int argc, char **argv ) {
 
   }
   return EXIT_SUCCESS;
-}
-
-
-bool readIntrinsic ( const std::string & fileName, Mat3 & K )
-{
-    // Load the K matrix
-    ifstream in;
-    in.open ( fileName.c_str (), ifstream::in );
-    if ( in.is_open () ) {
-        for ( int j = 0; j < 3; ++j )
-            for ( int i = 0; i < 3; ++i )
-                in >> K ( j, i );
-    }
-    else {
-        std::cerr << std::endl
-            << "Invalid input K.txt file" << std::endl;
-        return false;
-    }
-    return true;
 }
