@@ -49,10 +49,28 @@ double AFD (Mat xL, Mat xR)
         return EXIT_FAILURE;
     }
     
-    cout << "squaredNorm:" << (xL - xR).squaredNorm () << endl;
-    cout << "Norm:" << (xL - xR).norm () << endl;
-    afd = (xL - xR).norm ()/xL.cols();
+    cout << "In AFD:" << endl;
+
+    Mat delta = xL - xR;
+
+    //double squaredNorm = 0.0;
+    //for ( size_t i = 0; i < delta.cols (); i++ )
+    //{
+    //    double x = delta.col ( i ).x ();
+    //    double y = delta.col ( i ).y ();
+    //    // squaredNorm += (x*x + y*y);
+    //    cout << "i:" << i << ", x:" << x << ", y:" << y << endl;
+    //}
+
+    cout << "squaredNorm:" << delta.squaredNorm () << endl;
+    cout << "Norm:" << delta.norm () << endl;
     
+    //afd = (xL - xR).norm ()/xL.cols();
+
+    afd = sqrt ( delta.squaredNorm () / xL.cols () ); // or sqrt ( delta.colwise().squaredNorm ().mean() ); there is one sqrt(n) between this and above one
+    
+
+
     return afd;
 }
 

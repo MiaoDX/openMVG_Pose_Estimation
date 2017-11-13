@@ -42,6 +42,7 @@
 #include <icpPointToPlane.h>
 
 #include "AFD.h"
+#include "image_process.h"
 
 using namespace openMVG;
 using namespace openMVG::image;
@@ -53,16 +54,6 @@ using namespace std;
 using json = nlohmann::json;
 
 
-bool readIntrinsic ( const std::string & fileName, Mat3 & K );
-cv::Point2d pixel2cam ( const cv::Point2d& p, const cv::Mat& K )
-{
-    return cv::Point2d
-    (
-        (p.x - K.at<double> ( 0, 2 )) / K.at<double> ( 0, 0 ),
-        (p.y - K.at<double> ( 1, 2 )) / K.at<double> ( 1, 1 )
-    );
-}
-
 void ICP_With_Point (const vector<cv::Point3f>& pts1, const vector<cv::Point3f>& pts2, vector<FLOAT>& R_vec, vector<FLOAT>& t_vec );
 
 int main( int argc, char **argv ) {
@@ -73,6 +64,7 @@ int main( int argc, char **argv ) {
     string im2_depth = "2_depth.jpg";
     string output_json_file = "output.json";
     string camera_K_file = "H:/projects/SLAM/dataset/K.txt";
+    string H_filter = "0";
 
     CmdLine cmd;
     cmd.add ( make_option ( 'a', im1, "image1" ) );
@@ -81,7 +73,7 @@ int main( int argc, char **argv ) {
     cmd.add ( make_option ( 'r', im2_depth, "image2_depth" ) );
     cmd.add ( make_option ( 'K', camera_K_file, "camera_K_file" ) );
     cmd.add ( make_option ( 'o', output_json_file, "output_json file" ) );
-
+    cmd.add ( make_option ( 'H', H_filter, "H_filter" ) );
 
 
     try {
@@ -96,6 +88,7 @@ int main( int argc, char **argv ) {
             << "[-r|--image2_depth - the name of image2 depth]\n"
             << "[-K|--camera_K_file - the file stores K values]\n"
             << "[-o|--output_json_file - json file for the R,t]\n"
+            << "[-H|--H_filter, 0 or 1]\n"
             << std::endl;
 
         std::cerr << s << std::endl;
@@ -105,111 +98,25 @@ int main( int argc, char **argv ) {
 
 
 
-  Image<RGBColor> image;
-  //const string jpg_filenameL = stlplus::folder_up(string(THIS_SOURCE_DIR))
-  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
-  //const string jpg_filenameR = stlplus::folder_up(string(THIS_SOURCE_DIR))
-  //  + "/imageData/StanfordMobileVisualSearch/Ace_0.png";
+    const string jpg_filenameL = im1;
+    const string jpg_filenameR = im2;
 
-  //const string jpg_filenameL = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_000.png";
-  //const string jpg_filenameR = "H:/projects/graduation_project_codebase/ACR/dataset/nine_scene/1_500.png";
+    std::vector<IndMatch> vec_PutativeMatches;
+    Mat xL, xR, xL_Hfiltering, xR_Hfiltering;
 
-  const string jpg_filenameL = im1;
-  const string jpg_filenameR = im2;
+    get_matches ( jpg_filenameL, jpg_filenameR, vec_PutativeMatches, xL, xR, xL_Hfiltering, xR_Hfiltering );
 
-  Image<unsigned char> imageL, imageR;
-  ReadImage(jpg_filenameL.c_str(), &imageL);
-  ReadImage(jpg_filenameR.c_str(), &imageR);
-
-  //--
-  // Detect regions thanks to an image_describer
-  //--
-  using namespace openMVG::features;
-  std::unique_ptr<Image_describer> image_describer
-    (new SIFT_Anatomy_Image_describer(SIFT_Anatomy_Image_describer::Params(-1)));
-  std::map<IndexT, std::unique_ptr<features::Regions> > regions_perImage;
-  image_describer->Describe(imageL, regions_perImage[0]);
-  image_describer->Describe(imageR, regions_perImage[1]);
-
-  const SIFT_Regions* regionsL = dynamic_cast<SIFT_Regions*>(regions_perImage.at(0).get());
-  const SIFT_Regions* regionsR = dynamic_cast<SIFT_Regions*>(regions_perImage.at(1).get());
-
-  const PointFeatures
-    featsL = regions_perImage.at(0)->GetRegionsPositions(),
-    featsR = regions_perImage.at(1)->GetRegionsPositions();
-
-  // Show both images side by side
-  {
-    Image<unsigned char> concat;
-    ConcatH(imageL, imageR, concat);
-    string out_filename = "01_concat.jpg";
-    WriteImage(out_filename.c_str(), concat);
-  }
-
-  //- Draw features on the two image (side by side)
-  {
-    Features2SVG
-    (
-      jpg_filenameL,
-      {imageL.Width(), imageL.Height()},
-      regionsL->Features(),
-      jpg_filenameR,
-      {imageR.Width(), imageR.Height()},
-      regionsR->Features(),
-      "02_features.svg"
-    );
-  }
-
-  std::vector<IndMatch> vec_PutativeMatches;
-  //-- Perform matching -> find Nearest neighbor, filtered with Distance ratio
-  {
-    // Find corresponding points
-    matching::DistanceRatioMatch(
-      0.8, matching::BRUTE_FORCE_L2,
-      *regions_perImage.at(0).get(),
-      *regions_perImage.at(1).get(),
-      vec_PutativeMatches);
-
-    IndMatchDecorator<float> matchDeduplicator (
-        vec_PutativeMatches, featsL, featsR );
-    matchDeduplicator.getDeduplicated ( vec_PutativeMatches );
-
-    std::cout
-        << regions_perImage.at ( 0 )->RegionCount () << " #Features on image A" << std::endl
-        << regions_perImage.at ( 1 )->RegionCount () << " #Features on image B" << std::endl
-        << vec_PutativeMatches.size () << " #matches with Distance Ratio filter" << std::endl;
-
-
-    // Draw correspondences after Nearest Neighbor ratio filter
-    const bool bVertical = true;
-    Matches2SVG
-    (
-      jpg_filenameL,
-      {imageL.Width(), imageL.Height()},
-      regionsL->GetRegionsPositions(),
-      jpg_filenameR,
-      {imageR.Width(), imageR.Height()},
-      regionsR->GetRegionsPositions(),
-      vec_PutativeMatches,
-      "03_Matches.svg",
-      bVertical
-    );
-  }
-
-
-  {
-    //A. get back interest point and send it to the robust estimation framework
-    Mat xL(2, vec_PutativeMatches.size());
-    Mat xR(2, vec_PutativeMatches.size());
-
-    for (size_t k = 0; k < vec_PutativeMatches.size(); ++k)  {
-      const PointFeature & imaL = featsL[vec_PutativeMatches[k].i_];
-      const PointFeature & imaR = featsR[vec_PutativeMatches[k].j_];
-      xL.col(k) = imaL.coords().cast<double>();
-      xR.col(k) = imaR.coords().cast<double>();
+    cout << "H_filter:" << H_filter << endl;
+    if ( H_filter == "1" )
+    {
+        cout << "Using H_filter, replace xL and xR with filtered one" << endl;
+        xL = xL_Hfiltering;
+        xR = xR_Hfiltering;
     }
 
 
+
+  {
     Mat3 K;
     //read K from file
     if ( !readIntrinsic ( camera_K_file, K ) )
@@ -259,7 +166,7 @@ int main( int argc, char **argv ) {
         cv::Point2d p1 = pixel2cam ( kp1, K_OCV );
         cv::Point2d p2 = pixel2cam ( kp2, K_OCV );
         pts_3d_1.push_back ( cv::Point3f ( p1.x*dd_1, p1.y*dd_1, dd_1 ) );
-        pts_3d_2.push_back ( cv::Point3f ( p2.x*dd_2, p2.y*dd_2, dd_2 ) );        
+        pts_3d_2.push_back ( cv::Point3f ( p2.x*dd_2, p2.y*dd_2, dd_2 ) );   
     }
 
 
@@ -284,6 +191,19 @@ int main( int argc, char **argv ) {
 
     j["AFD"] = AFD ( xL, xR );
 
+    int points_num = pts_3d_1.size ();
+    j["points_num"] = points_num;
+    cv::Mat pts_3d_1_cv_mat ( pts_3d_1 );
+    j["pts_3d_1"] = getVector ( pts_3d_1_cv_mat );
+    cv::Mat pts_3d_2_cv_mat ( pts_3d_2 );
+    j["pts_3d_2"] = getVector ( pts_3d_2_cv_mat );
+
+    for (int i = 0; i < 5; i ++ )
+    {
+        cout << i << ": " << pts_3d_1[i] << endl;
+    }
+
+
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;
     std::ofstream o ( output_json_file );
@@ -292,25 +212,6 @@ int main( int argc, char **argv ) {
 
   }
   return EXIT_SUCCESS;
-}
-
-
-bool readIntrinsic ( const std::string & fileName, Mat3 & K )
-{
-    // Load the K matrix
-    ifstream in;
-    in.open ( fileName.c_str (), ifstream::in );
-    if ( in.is_open () ) {
-        for ( int j = 0; j < 3; ++j )
-            for ( int i = 0; i < 3; ++i )
-                in >> K ( j, i );
-    }
-    else {
-        std::cerr << std::endl
-            << "Invalid input K.txt file" << std::endl;
-        return false;
-    }
-    return true;
 }
 
 void ICP_With_Point ( const vector<cv::Point3f>& pts1, const vector<cv::Point3f>& pts2, vector<FLOAT>& R_vec, vector<FLOAT>& t_vec )

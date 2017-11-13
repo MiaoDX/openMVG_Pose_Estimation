@@ -274,6 +274,29 @@ int main( int argc, char **argv ) {
 
     j["AFD"] = AFD ( xL, xR );
 
+
+    // write xL, xR to json, we need to do transpose, only because the data is stored as (2, n),
+    // normaly, we can just use the original as the K below
+    vector<double> xL_d = getVectorFromEigen ( xL.transpose() );
+    vector<double> xR_d = getVectorFromEigen ( xR.transpose () );
+    j["K_Eigen"] = getVectorFromEigen ( K );
+    j["points_num"] = xL.cols ();
+    j["xL"] = xL_d;
+    j["xR"] = xR_d;
+
+    cout << "xL:" << endl;
+    for (int i = 0; i < 5; i ++ )
+    {
+        cout << "i:" << i << ", x:" << xL.col ( i ).x () << ", y:" << xL.col ( i ).y () << endl;
+    }
+    cout << "xR:" << endl;
+    for ( int i = 0; i < 5; i++ )
+    {
+        cout << "i:" << i << ", x:" << xR.col ( i ).x () << ", y:" << xR.col ( i ).y () << endl;
+    }
+
+
+
     // write prettified JSON to another file
     cout << "Going to save json to " << output_json_file << endl;
     std::ofstream o ( output_json_file );
@@ -283,3 +306,4 @@ int main( int argc, char **argv ) {
   }
   return EXIT_SUCCESS;
 }
+ 

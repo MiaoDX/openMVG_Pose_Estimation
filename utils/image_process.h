@@ -63,7 +63,20 @@ bool readIntrinsic ( const std::string & fileName, Mat3 & K )
     return true;
 }
 
+vector<double> getVector ( const cv::Mat &_t1f )
+{
+    cv::Mat t1f;
+    _t1f.convertTo ( t1f, CV_64F );
+    return (vector<double>)(t1f.reshape ( 1, 1 ));
+}
 
+vector<double> getVectorFromEigen ( const Mat &_t1f_eigen )
+{   
+    cv::Mat _t1f_cv;
+    cv::eigen2cv ( _t1f_eigen, _t1f_cv );
+
+    return  getVector ( _t1f_cv );
+}
 
 void get_matches(string jpg_filenameL, string jpg_filenameR, std::vector<IndMatch>& vec_PutativeMatches,
     Mat& xL, Mat& xR, Mat& xL_Hfiltering, Mat& xR_Hfiltering )
