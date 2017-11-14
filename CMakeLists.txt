@@ -79,6 +79,8 @@ add_subdirectory(multiview_robust_pnp_noise)
 
 add_subdirectory(multiview_robust_icp)
 
+add_subdirectory(generate_matched_3d_points)
+
 add_subdirectory(main_ComputeFeatures_OpenCV)
 
 add_subdirectory(utils)
